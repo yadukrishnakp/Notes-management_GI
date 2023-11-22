@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Notes App</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <style>
+        .card {
+            margin-bottom: 20px;
+        }
+        .card-body button {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-4 mb-4">Notes</h1>
+        
+        <div class="row" id="notes-list"></div>
+
+        <form id="note-form" class="mt-4">
+            <input type="hidden" id="note-id">
+            <div class="form-group">
+                <input type="text" name="title" id="note-title" class="form-control" placeholder="Note Title">
+            </div>
+            <div class="form-group">
+                <textarea id="note-content" name="body" class="form-control" placeholder="Note Content"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" id="save-note">Save Note</button>
+            <button type="button" class="btn btn-secondary" id="cancel-edit" style="display: none;">Cancel</button>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        function fetchNotes() {
+            fetch('http://127.0.0.1:8000/notes/get-notes')
+                .then(response => response.json())
+                .then(data => {
+                    const notesList = document.getElementById('notes-list');
+                    notesList.innerHTML = '';
+
+                    if (data.status && data.data && Array.isArray(data.data)) {
+                        data.data.forEach(note => {
+                            const card = document.createElement('div');
+                            card.classList.add('col-md-4');
+
+                            const cardBody = document.createElement('div');
+                            cardBody.classList.add('card', 'mb-3');
+
+                            const cardContent = document.createElement('div');
+                            cardContent.classList.add('card-body');
+
+                            const cardTitle = document.createElement('h5');
+                            cardTitle.classList.add('card-title');
+                            cardTitle.textContent = note.title;
+
+                            const cardText = document.createElement('p');
+                            cardText.classList.add('card-text');
+                            cardText.textContent = note.body;
+
+                            const deleteButton = document.createElement('button');
+                            deleteButton.classList.add('btn', 'btn-danger');
+                            deleteButton.textContent = 'Delete';
+                            deleteButton.onclick = () => deleteNoteConfirmation(note.id);
+
+                            const editButton = document.createElement('button');
+                            editButton.classList.add('btn', 'btn-info');
+                            editButton.textContent = 'Edit';
+                            editButton.onclick = () => editNote(note.id, note.title, note.body);
+
+                            cardContent.appendChild(cardTitle);
+                            cardContent.appendChild(cardText);
+                            cardContent.appendChild(deleteButton);
+                            cardContent.appendChild(editButton);
+
+                            cardBody.appendChild(cardContent);
+                            card.appendChild(cardBody);
+
+                            notesList.appendChild(card);
+                        });
+                    } else {
+                        const listItem = document.createElement('p');
+                        listItem.textContent = 'Error: Invalid data structure received.';
+                        notesList.appendChild(listItem);
+                    }
+                })
+                .catch(error => console.error('Error fetching notes:', error));
+        }
+
+        window.onload = fetchNotes;
+
+        function deleteNoteConfirmation(noteId) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'You will not be able to recover this note!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    deleteNote(noteId);
+                }
+            });
+        }
+
+        function deleteNote(noteId) {
+            fetch('http://127.0.0.1:8000/notes/destroy-notes', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ instance_id: [noteId] }),
+            })
+            .then(response => response.json())
+            .then(deletedNote => {
+                fetchNotes();
+            })
+            .catch(error => console.error('Error deleting note:', error));
+        }
+
+
+        document.getElementById('note-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const noteId = document.getElementById('note-id').value;
+            const title = document.getElementById('note-title').value;
+            const body = document.getElementById('note-content').value;
+
+            if (!noteId) {
+                createNewNote(title, body);
+            } else {
+                updateNote(noteId, title, body);
+            }
+        });
+
+        function createNewNote(title, body) {
+            fetch('http://127.0.0.1:8000/notes/create-or-update-notes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ title, body }),
+            })
+            .then(response => response.json())
+            .then(createdNote => {
+                fetchNotes();
+                clearForm();
+            })
+            .catch(error => console.error('Error adding note:', error));
+        }
+
+        function updateNote(noteId, title, body) {
+            fetch(`http://127.0.0.1:8000/notes/create-or-update-notes/${noteId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ title, body }),
+            })
+            .then(response => response.json())
+            .then(updatedNote => {
+                fetchNotes();
+                clearForm();
+            })
+            .catch(error => console.error('Error updating note:', error));
+        }
+
+        function deleteNote(noteId) {
+            fetch('http://127.0.0.1:8000/notes/destroy-notes', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ instance_id: [noteId] }),
+            })
+            .then(response => response.json())
+            .then(deletedNote => {
+                fetchNotes();
+            })
+            .catch(error => console.error('Error deleting note:', error));
+        }
+
+        
+
+        function editNote(id, title, content) {
+            document.getElementById('note-id').value = id;
+            document.getElementById('note-title').value = title;
+            document.getElementById('note-content').value = content;
+
+            document.getElementById('save-note').textContent = 'Update Note';
+            document.getElementById('cancel-edit').style.display = 'inline-block';
+        }
+
+        document.getElementById('cancel-edit').addEventListener('click', () => {
+            clearForm();
+        });
+
+        function clearForm() {
+            document.getElementById('note-id').value = '';
+            document.getElementById('note-title').value = '';
+            document.getElementById('note-content').value = '';
+
+            document.getElementById('save-note').textContent = 'Save Note';
+            document.getElementById('cancel-edit').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
